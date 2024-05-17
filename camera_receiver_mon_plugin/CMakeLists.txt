@@ -16,12 +16,19 @@
 #
 # ========================= LICENSE =================================
 
+cmake_minimum_required(VERSION 3.14)
+
+# Allow the install command to use generator expressions
+if(POLICY CMP0087)
+    cmake_policy(SET CMP0087 NEW)
+endif()
+
 project(mon_plugin_camera_receiver VERSION 0.1.0)
 
-find_package(Qt5 COMPONENTS
-    Core
-    Widgets
-REQUIRED)
+# Legacy Qt5 (pre 5.15) support as suggested by teh Qt Documentation:
+# https://doc.qt.io/qt-6/cmake-qt5-and-qt6-compatibility.html#supporting-older-qt-5-versions
+find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Core Widgets)
+find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Core Widgets)
 
 find_package(eCAL REQUIRED)
 find_package(Protobuf REQUIRED)
@@ -45,7 +52,12 @@ set(${PROJECT_NAME}_ui
   src/plugin_widget.ui
 )
 
-qt5_wrap_ui(autogen_ui ${${PROJECT_NAME}_ui})
+# compile qt resource files and ui files
+if (${QT_VERSION_MAJOR} GREATER_EQUAL 6)
+  qt_wrap_ui(autogen_ui ${${PROJECT_NAME}_ui})
+else()
+  qt5_wrap_ui(autogen_ui ${${PROJECT_NAME}_ui})
+endif()
 
 add_mon_plugin(${PROJECT_NAME}
   ${${PROJECT_NAME}_src} ${${PROJECT_NAME}_header} ${${PROJECT_NAME}_ui} ${autogen_ui}
@@ -57,9 +69,15 @@ set(protobuf_files
 )
 PROTOBUF_TARGET_CPP(${PROJECT_NAME} ${CMAKE_SOURCE_DIR}/proto_messages/ ${protobuf_files})
 
-
 create_targets_protobuf()
-target_link_libraries(${PROJECT_NAME} Qt5::Widgets eCAL::core protobuf::libprotobuf eCAL::mon_plugin_lib)
+
+target_link_libraries(${PROJECT_NAME}
+  Qt${QT_VERSION_MAJOR}::Core
+  Qt${QT_VERSION_MAJOR}::Widgets
+  eCAL::core
+  protobuf::libprotobuf
+  eCAL::mon_plugin_lib
+)
 
 if(MSVC)
   set_target_properties(${PROJECT_NAME} PROPERTIES COMPILE_FLAGS "/wd4127 /wd4714")
@@ -71,7 +89,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE $<TARGET_PROPERTY:eCAL::core,
 install_mon_plugin(${PROJECT_NAME})
 
 if (TARGET mon)
-add_dependencies(mon ${PROJECT_NAME})
+  add_dependencies(mon ${PROJECT_NAME})
 endif()
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY CMAKE_BINARY_DIR/lib)
